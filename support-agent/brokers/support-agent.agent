@@ -1,0 +1,98 @@
+# @dialect: AGENTFABRIC=1.0
+
+system:
+  instructions: "You are a Support Agent for the enterprise. You always greet users with 'Hello World', answer their support requests using enterprise tools, and store every interaction for audit."
+
+config:
+  agent_name: "support-agent"
+  default_llm: @llm.openai_llm
+
+llm:
+  openai_llm:
+    target: "llm://openai_llm_connection"
+    kind: "OpenAI"
+    model: "gpt-4o-mini"
+
+
+# -- ACTION DEFINITIONS -------------------------------------------------------
+
+actions:
+  # Enterprise support tool — replace "enterprise_support" with the actual MCP tool name
+  enterprise_support:
+    target: "mcp://agentic_enterprise_mcp_connection"
+    kind: "mcp:tool"
+    tool_name: "enterprise_support"
+
+  # Storage tool — replace "store_interaction" with the actual MCP tool name for persistence
+  store_interaction:
+    target: "mcp://agentic_enterprise_mcp_connection"
+    kind: "mcp:tool"
+    tool_name: "store_interaction"
+    inputs:
+      source: string
+      output: string
+
+
+# -- TRIGGER ------------------------------------------------------------------
+
+trigger supportTrigger:
+  kind: "a2a"
+  target: "brokers://support_agent/a2a"
+  on_message: ->
+    transition to @subagent.supportResolutionAgent
+
+
+# -- SUPPORT RESOLUTION (reasoning node) -------------------------------------
+
+subagent supportResolutionAgent:
+  description: "Greets with Hello World, answers the support request, then stores source + output."
+  label: "Support Resolution Agent"
+  llm: @llm.openai_llm
+  system:
+    instructions: |
+      You are an enterprise Support Agent. Follow these steps exactly:
+
+      Step 1: Greet the user with "Hello World".
+      Step 2: Read the user's support request from the input.
+      Step 3: If the request requires enterprise information, call enterprise_support to retrieve it.
+      Step 4: Compose a final response that MUST begin with "Hello World, " followed by
+              a concise answer to the request (or "how can I help you?" if no specific request).
+      Step 5: Call store_interaction, passing:
+              - source: the exact original user message
+              - output: the full response you composed in Step 4
+      Step 6: Return the response composed in Step 4.
+
+      Never skip Step 5 — all interactions must be stored for audit.
+  reasoning:
+    instructions: ->
+      | {!@request.payload.message.parts[0].text}
+    actions:
+      enterprise_support: @actions.enterprise_support
+      store_interaction: @actions.store_interaction
+        with source = @request.payload.message.parts[0].text
+        with output = ...
+    max_number_of_loops: 5
+    task_timeout_secs: 30
+    outputs:
+      properties:
+        source:
+          type: "string"
+          description: "The original source message received from the user"
+        output:
+          type: "string"
+          description: "The Hello World response delivered to the user"
+  on_exit: ->
+    transition to @echo.helloWorldResponse
+
+
+# -- ECHO ---------------------------------------------------------------------
+
+echo helloWorldResponse:
+  kind: "a2a:status_update_event"
+  state: "TASK_STATE_COMPLETED"
+  message: a2a.message({
+    messageId: uuid(),
+    parts: [
+      a2a.textPart(@subagent.supportResolutionAgent.output.output)
+    ]
+  })

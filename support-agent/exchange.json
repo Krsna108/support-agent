@@ -1,0 +1,41 @@
+{
+  "main": "agent-network.yaml",
+  "name": "support-agent",
+  "classifier": "agentic-network",
+  "organizationId": "${organizationId}",
+  "descriptorVersion": "1.0.0",
+  "tags": ["agentscript", "support", "enterprise"],
+  "metadata": {
+    "variables": {
+      "agenticEnterpriseMcp": {
+        "url": {
+          "description": "Base URL for the Agentic Enterprise MCP server (e.g. https://enterprise-mcp.example.com)",
+          "default": "",
+          "secret": false
+        },
+        "clientId": {
+          "description": "Client ID for Agentic Enterprise MCP — apikey-client-credentials",
+          "default": "",
+          "secret": true
+        },
+        "clientSecret": {
+          "description": "Client Secret for Agentic Enterprise MCP — apikey-client-credentials",
+          "default": "",
+          "secret": true
+        }
+      },
+      "openai": {
+        "apiKey": {
+          "description": "OpenAI API key for the LLM connection",
+          "default": "",
+          "secret": true
+        }
+      }
+    }
+  },
+  "apiVersion": "v1.0",
+  "dependencies": [],
+  "groupId": "${organizationId}",
+  "assetId": "support-agent",
+  "version": "1.0.0"
+}

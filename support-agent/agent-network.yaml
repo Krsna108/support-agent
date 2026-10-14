@@ -1,0 +1,85 @@
+agentNetwork: 2.0.0
+info:
+  label: "Support Agent Network"
+  version: v1
+
+registry:
+  mcps:
+    agenticEnterpriseMcp:
+      info:
+        label: Agentic Enterprise MCP Server
+      metadata:
+        transport:
+          kind: streamableHttp
+          path: /mcp
+  llms:
+    openAiLlm:
+      info:
+        label: OpenAI GPT-4o Mini
+      metadata:
+        platform: OpenAI
+
+context:
+  # --- SECURITY: Policy definitions ---
+  # clientIdEnforcementPolicy enforces client ID + secret on every inbound
+  # A2A request to this broker. The gateway rejects calls without valid credentials.
+  policies:
+    clientIdEnforcementPolicy:
+      kind: client-id-enforcement
+
+  connections:
+    # Agentic Enterprise MCP — secured with client ID / secret (apikey-client-credentials)
+    agentic_enterprise_mcp_connection:
+      kind: mcp
+      ref:
+        name: agenticEnterpriseMcp
+      url: ${agenticEnterpriseMcp.url}
+      authentication:
+        kind: apikey-client-credentials
+        clientId: ${agenticEnterpriseMcp.clientId}
+        clientSecret: ${agenticEnterpriseMcp.clientSecret}
+
+    # LLM connection — secured with API key
+    openai_llm_connection:
+      kind: llm
+      ref:
+        name: openAiLlm
+      url: https://api.openai.com/v1
+      authentication:
+        kind: apiKey
+        apiKey: ${openai.apiKey}
+
+brokers:
+  support_agent:
+    kind: AgentScript
+    implementation: ./brokers/support-agent.agent
+    interfaces:
+      a2a:
+        # --- SECURITY: Enforce client ID + secret on every inbound A2A call ---
+        policies:
+          inbound:
+            - ref: { name: clientIdEnforcementPolicy }
+          outbound: []
+        card:
+          name: Support Agent
+          description: >
+            Enterprise support agent that greets users with Hello World
+            and provides assistance via the Agentic Enterprise MCP.
+          version: 1.0.0
+          capabilities:
+            streaming: false
+            pushNotifications: false
+          defaultInputModes:
+            - text/plain
+          defaultOutputModes:
+            - text/plain
+          skills:
+            - id: hello-world-support
+              name: Hello World Support
+              description: >
+                Greets users with Hello World and answers support requests
+                using enterprise tooling.
+              tags:
+                - support
+                - enterprise
+                - hello-world
